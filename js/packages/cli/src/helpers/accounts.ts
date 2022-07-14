@@ -29,8 +29,13 @@ import { createCandyMachineV2Account } from './instructions';
 import { web3 } from '@project-serum/anchor';
 import log from 'loglevel';
 import { AccountLayout, u64 } from '@solana/spl-token';
-import { getCluster } from './various';
+import { getCluster, findLockupSettingsId } from './various';
 import { bs58 } from '@project-serum/anchor/dist/cjs/utils/bytes';
+
+import { LockupType } from "../types";
+import { BN } from '@project-serum/anchor';
+import { createSetLockupSettingsInstruction } from './setLockupSettings';
+
 export type AccountAndPubkey = {
   pubkey: string;
   account: AccountInfo<Buffer>;
@@ -139,6 +144,20 @@ export const createCandyMachineV2 = async function (
     throw new Error(`Invalid config, creators shares must add up to 100`);
   }
 
+  const [lockupSettingsId] = await findLockupSettingsId(candyAccount.publicKey);
+  const lockupInitIx = createSetLockupSettingsInstruction(
+    {
+      candyMachine: candyAccount.publicKey,
+      authority: payerWallet.publicKey,
+      lockupSettings: lockupSettingsId,
+      payer: payerWallet.publicKey,
+    },
+    {
+      lockupType: Number(LockupType.Duration),
+      number: new BN(60),
+    },
+  );
+
   const remainingAccounts = [];
   if (splToken) {
     remainingAccounts.push({
@@ -169,6 +188,7 @@ export const createCandyMachineV2 = async function (
           payerWallet.publicKey,
           candyAccount.publicKey,
         ),
+        lockupInitIx
       ],
     }),
   };

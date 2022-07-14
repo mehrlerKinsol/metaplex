@@ -10,9 +10,10 @@ import log from 'loglevel';
 import { BN, Program, web3 } from '@project-serum/anchor';
 import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { StorageType } from './storage-type';
+import { utils } from '@project-serum/anchor';
 
 import { getAtaForMint } from './accounts';
-import { CLUSTERS, DEFAULT_CLUSTER } from './constants';
+import { CLUSTERS, DEFAULT_CLUSTER, CANDY_MACHINE_PROGRAM_V2_ID } from './constants';
 import {
   Uses,
   UseMethod,
@@ -459,3 +460,13 @@ export async function parseCollectionMintPubkey(
   }
   return collectionMintPubkey;
 }
+
+const LOCKUP_SETTINGS_SEED = 'lockup_settings';
+export const findLockupSettingsId = async (
+  candyMachineId: PublicKey,
+): Promise<[PublicKey, number]> => {
+  return await PublicKey.findProgramAddress(
+    [utils.bytes.utf8.encode(LOCKUP_SETTINGS_SEED), candyMachineId.toBuffer()],
+    CANDY_MACHINE_PROGRAM_V2_ID,
+  );
+};

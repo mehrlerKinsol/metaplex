@@ -8,18 +8,27 @@ import {
 import fs from 'fs';
 import log from 'loglevel';
 import { BN, Program, web3 } from '@project-serum/anchor';
-import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  Token,
+  TOKEN_PROGRAM_ID,
+} from '@solana/spl-token';
 import { StorageType } from './storage-type';
 import { utils } from '@project-serum/anchor';
 
 import { getAtaForMint } from './accounts';
-import { CLUSTERS, DEFAULT_CLUSTER, CANDY_MACHINE_PROGRAM_V2_ID } from './constants';
+import {
+  CLUSTERS,
+  DEFAULT_CLUSTER,
+  CANDY_MACHINE_PROGRAM_V2_ID,
+} from './constants';
 import {
   Uses,
   UseMethod,
   Metadata,
   MetadataKey,
 } from '@metaplex-foundation/mpl-token-metadata';
+import { programs } from '@cardinal/token-manager';
 
 export async function getCandyMachineV2Config(
   walletKeyPair: web3.Keypair,
@@ -467,6 +476,77 @@ export const findLockupSettingsId = async (
 ): Promise<[PublicKey, number]> => {
   return await PublicKey.findProgramAddress(
     [utils.bytes.utf8.encode(LOCKUP_SETTINGS_SEED), candyMachineId.toBuffer()],
-    CANDY_MACHINE_PROGRAM_V2_ID,
+    new PublicKey(CANDY_MACHINE_PROGRAM_V2_ID),
   );
+};
+
+export const remainingAccountsForLockup = async (
+  candyMachineId: PublicKey,
+  mintId: PublicKey,
+  userTokenAccountId: PublicKey,
+) => {
+  const [lockupSettingsId] = await findLockupSettingsId(candyMachineId);
+  const [tokenManagerId] =
+    await programs.tokenManager.pda.findTokenManagerAddress(mintId);
+  const tokenManagerTokenAccountId = await Token.getAssociatedTokenAddress(
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    TOKEN_PROGRAM_ID,
+    mintId,
+    tokenManagerId,
+    true,
+  );
+  const [mintCounterId] = await programs.tokenManager.pda.findMintCounterId(
+    mintId,
+  );
+  const [timeInvalidatorId] =
+    await programs.timeInvalidator.pda.findTimeInvalidatorAddress(
+      tokenManagerId,
+    );
+  return [
+    {
+      pubkey: lockupSettingsId,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: tokenManagerId,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: tokenManagerTokenAccountId,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: mintCounterId,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: userTokenAccountId,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: programs.tokenManager.TOKEN_MANAGER_ADDRESS,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: timeInvalidatorId,
+      isSigner: false,
+      isWritable: true,
+    },
+    {
+      pubkey: programs.timeInvalidator.TIME_INVALIDATOR_ADDRESS,
+      isSigner: false,
+      isWritable: false,
+    },
+    {
+      pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
+      isSigner: false,
+      isWritable: false,
+    },
+  ];
 };

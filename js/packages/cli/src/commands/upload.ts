@@ -24,10 +24,12 @@ import { ipfsCreds, ipfsUpload } from '../helpers/upload/ipfs';
 
 import { StorageType } from '../helpers/storage-type';
 import { AssetKey } from '../types';
-import { chunks, sleep } from '../helpers/various';
+import { chunks, findLockupSettingsId, sleep } from '../helpers/various';
 import { pinataUpload } from '../helpers/upload/pinata';
 import { setCollection } from './set-collection';
 import { nftStorageUploadGenerator } from '../helpers/upload/nft-storage';
+import { LockupType } from '../types';
+import { sendTransactionWithRetryWithKeypair } from '../helpers/transactions';
 
 export async function uploadV2({
   files,
@@ -403,6 +405,30 @@ export async function uploadV2({
   } else {
     log.info('Skipping upload to chain as this is a hidden Candy Machine');
   }
+
+  const signers = [walletKeyPair];
+  const [lockupSettingsId] = await findLockupSettingsId(candyMachine);
+  console.log(lockupSettingsId.toBase58());
+  const lockupInitIx = await anchorProgram.instruction.setLockupSettings(
+    Number(LockupType.Duration),
+    new BN(600),
+    {
+      accounts: {
+        candyMachine: candyMachine,
+        authority: walletKeyPair.publicKey,
+        lockupSettings: lockupSettingsId,
+        payer: walletKeyPair.publicKey,
+        systemProgram: web3.SystemProgram.programId,
+      },
+      signers,
+    },
+  );
+  await sendTransactionWithRetryWithKeypair(
+    anchorProgram.provider.connection,
+    walletKeyPair,
+    [lockupInitIx],
+    signers,
+  );
 
   console.log(`Done. Successful = ${uploadSuccessful}.`);
   return uploadSuccessful;

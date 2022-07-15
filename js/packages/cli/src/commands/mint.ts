@@ -22,6 +22,7 @@ import { MintLayout, Token } from '@solana/spl-token';
 import { createAssociatedTokenAccountInstruction } from '../helpers/instructions';
 import { sendTransactionWithRetryWithKeypair } from '../helpers/transactions';
 import log from 'loglevel';
+import { remainingAccountsForLockup } from '../helpers/various';
 
 export async function mint(
   keypair: string,
@@ -313,13 +314,22 @@ export async function mintV2(
   const metadataAddress = await getMetadata(mint.publicKey);
   const masterEdition = await getMasterEdition(mint.publicKey);
 
-  log.debug(
+  remainingAccounts.push(
+    ...(await remainingAccountsForLockup(
+      candyMachineAddress,
+      mint.publicKey,
+      userKeyPair.publicKey,
+    )),
+  );
+
+  log.info(
     'Remaining accounts: ',
     remainingAccounts.map(i => i.pubkey.toBase58()),
   );
   const [candyMachineCreator, creatorBump] = await getCandyMachineCreator(
     candyMachineAddress,
   );
+
   instructions.push(
     await anchorProgram.instruction.mintNft(creatorBump, {
       accounts: {
